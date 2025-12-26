@@ -15,7 +15,7 @@ You may also prepend a [direct reference](https://peps.python.org/pep-0440/#dire
 ## Building
 The `.tar.gz` file in a release is the [source distribution](https://packaging.python.org/en/latest/glossary/#term-Source-Distribution-or-sdist), which was created from the source code with `uv build --sdist`. [Built distributions](https://packaging.python.org/en/latest/glossary/#term-Built-Distribution) are not provided.
 
-## Introduction
+## Overview
 
 * An `Asset` is an (intermediate) result, representing a completed computation step
 * Each `Asset` can be created ("made") by zero or more `Recipe`s
