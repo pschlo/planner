@@ -21,7 +21,7 @@ The `.tar.gz` file in a release is the [source distribution](https://packaging.p
 * Each `Asset` can be created ("made") by zero or more `Recipe`s
 * The `Asset` is the **what**, the `Recipe` is the **how**
 * A `Recipe` may depend on zero or more `Asset`s, which it can treat as given and use in its `make()` method to produce its `Asset`
-* This allows for a very modular design; for instance, a specific simulation can be represented as a `SimulationResultAsset`, which is made with a `SimulationResultRecipe`, which depends on some other `Asset`s like `ConfiguraionAsset`. The `SimulationResultRecipe` does not need to care about **how** the `Asset`s are made, it can just take them as given and use them to produce its `SimulationResultAsset`.
+* This allows for a very modular design; for instance, a specific simulation can be represented as a `SimulationResultAsset`, which is made with a `SimulationResultRecipe`, which depends on some other `Asset`s like `ConfigurationAsset`. The `SimulationResultRecipe` does not need to care about **how** the `Asset`s are made, it can just take them as given and use them to produce its `SimulationResultAsset`.
 * When the simulation should be executed (i.e., the target `Asset` should be made), `Recipe`s for the target asset and all intermediate assets must be present
 * For this, a `Planner` can be created, to which `Recipe`s may be added in any order
 * The Planner may finally be compiled into a `Plan` by resolving the `Asset` / `Recipe` dependencies
