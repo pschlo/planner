@@ -5,8 +5,8 @@ from collections.abc import Generator, Sequence
 import networkx as nx
 import logging
 from typing import Self, TYPE_CHECKING, ContextManager, Callable
-from contextlib import nullcontext, AbstractContextManager
 from pathlib import Path
+from contextlib import ExitStack
 
 from ..asset import Asset, Recipe
 from .common import _parse_dependencies, Contract
@@ -19,29 +19,10 @@ log = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class AssetRecord[T: Asset]:
     asset: T
-    contextmanager: ContextManager | None
-    tmpdir: TemporaryDirectory | None
+    stack: ExitStack
 
-    def _cleanup(self):
-        err = None
-        try:
-            self._cleanup_generator()
-        except Exception as e:
-            err = e
-            raise
-        finally:
-            if self.tmpdir is not None:
-                try:
-                    self.tmpdir.cleanup()
-                except Exception:
-                    # log it, but don't mask the original error
-                    log.error("Temporary workdir cleanup failed")
-                    if err is None:
-                        raise
-
-    def _cleanup_generator(self):
-        if self.contextmanager is not None:
-            self.contextmanager.__exit__(None, None, None)
+    def _cleanup(self, exc_type=None, exc=None, tb=None):
+        self.stack.__exit__(exc_type, exc, tb)
 
 
 class PlanExecution:
@@ -75,7 +56,7 @@ class PlanExecution:
 
     def __exit__(self, exc_type, exc, tb):
         try:
-            self.cleanup()
+            self.cleanup(exc_type, exc, tb)
         except Exception as cleanup_exc:
             if exc_type is None:
                 # No original error → propagate cleanup failure
@@ -91,7 +72,7 @@ class PlanExecution:
 
         log.info("Starting plan execution")
 
-        # how many consumers each node has
+        # remaining downstream contract-uses
         remaining_uses = {n: self.graph.out_degree(n) for n in self.seq}
 
         for node in self.seq:
@@ -112,14 +93,14 @@ class PlanExecution:
                     # Clean up asset
                     log.debug(f"Cleaning up {u}")
                     try:
-                        rec._cleanup()
+                        rec._cleanup(None, None, None)
                     except Exception as e:
                         log.exception(f"Cleanup failed for {u}")
 
         return self.node_to_asset[self.target]
 
 
-    def cleanup(self):
+    def cleanup(self, exc_type=None, exc=None, tb=None):
         log.info("Cleaning up assets")
         errors: list[Exception] = []
 
@@ -132,9 +113,9 @@ class PlanExecution:
             # Clean up asset
             log.debug(f"Cleaning up {node}")
             try:
-                rec._cleanup()
+                rec._cleanup(exc_type, exc, tb)
             except Exception as e:
-                log.error(f"Cleanup failed for {node}")
+                log.exception(f"Cleanup failed for {node}")
                 errors.append(e)
 
         assert not self.node_to_asset
@@ -147,32 +128,49 @@ class PlanExecution:
         _Recipe = node.recipe
         path, temp_dir = self._resolve_build_path(_Recipe)
 
-        # create dependencies
-        input_assets: dict[Contract, AssetRecord] = {
-            c: self.node_to_asset[u]
-            for u, _, c in self.graph.in_edges(node, keys=True)
-        }
-        recipe_kwargs: dict[str, Asset] = {
-            dep.name: input_assets[dep.contract].asset
-            for dep in _parse_dependencies(_Recipe)
-        }
-
-        recipe_instance = _Recipe(workdir=path, **recipe_kwargs)
-
+        stack = ExitStack()
         try:
-            _res = recipe_instance.make()
-        except Exception as e:
-            _Asset = _Recipe._makes
-            raise RuntimeError(f"Failed to make asset '{_Asset}' with recipe '{_Recipe}'") from e
+            # if temp_dir exists, make it part of the stack for guaranteed cleanup on failure
+            if temp_dir is not None:
+                stack.callback(temp_dir.cleanup)
 
-        if isinstance(_res, AbstractContextManager):
-            asset = _res.__enter__()
-            return AssetRecord(asset=asset, contextmanager=_res, tmpdir=temp_dir)
-        elif isinstance(_res, Asset):
-            return AssetRecord(asset=_res, contextmanager=None, tmpdir=temp_dir)
-        else:
-            raise RuntimeError(f"Recipe '{_Recipe}' produced an asset of invalid type {type(_res)}")
-        
+            # create dependencies
+            input_assets: dict[Contract, AssetRecord] = {
+                c: self.node_to_asset[u]
+                for u, _, c in self.graph.in_edges(node, keys=True)
+            }
+            recipe_kwargs: dict[str, Asset] = {
+                dep.name: input_assets[dep.contract].asset
+                for dep in _parse_dependencies(_Recipe)
+            }
+
+            recipe_instance = _Recipe(workdir=path, **recipe_kwargs)
+            _Asset = _Recipe._makes
+
+            try:
+                _res = recipe_instance.make()
+            except Exception as e:
+                raise RuntimeError(f"Failed to make asset '{_Asset}' with recipe '{_Recipe}'") from e
+
+            if isinstance(_res, Asset):
+                # transfer ownership of tmpdir cleanup to the AssetRecord via stack
+                return AssetRecord(asset=_res, stack=stack)
+
+            is_context_manager = callable(getattr(_res, "__enter__", None)) and callable(getattr(_res, "__exit__", None))
+            if is_context_manager:
+                try:
+                    asset = stack.enter_context(_res)
+                except Exception as e:
+                    raise RuntimeError(f"Failed to make asset '{_Asset}' with recipe '{_Recipe}'") from e
+
+                # Transfer ownership: AssetRecord will close the stack during cleanup
+                return AssetRecord(asset=asset, stack=stack)
+
+            raise TypeError(f"Recipe '{_Recipe}' produced an asset of invalid type {type(_res)}")
+
+        except Exception:
+            stack.close()
+            raise
 
     def _resolve_build_path(self, recipe: type[Recipe]):
         root_path = self.root
