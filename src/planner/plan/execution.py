@@ -46,6 +46,7 @@ class PlanExecution:
         self.root = root
         self.project = project
         self.eager_cleanup = eager_cleanup
+        self._cleanup_errors: list[Exception] = []
     
     @property
     def target(self):
@@ -56,7 +57,7 @@ class PlanExecution:
 
     def __exit__(self, exc_type, exc, tb):
         try:
-            self.cleanup(exc_type, exc, tb)
+            self._cleanup(exc_type, exc, tb)
         except Exception as cleanup_exc:
             if exc_type is None:
                 # No original error → propagate cleanup failure
@@ -96,13 +97,16 @@ class PlanExecution:
                         rec._cleanup(None, None, None)
                     except Exception as e:
                         log.exception(f"Cleanup failed for {u}")
+                        self._cleanup_errors.append(e)
 
         return self.node_to_asset[self.target]
 
 
-    def cleanup(self, exc_type=None, exc=None, tb=None):
+    def cleanup(self):
+        self._cleanup(None, None, None)
+
+    def _cleanup(self, exc_type=None, exc=None, tb=None):
         log.info("Cleaning up assets")
-        errors: list[Exception] = []
 
         for node in self.seq[::-1]:
             # Unregister loaded asset
@@ -116,12 +120,12 @@ class PlanExecution:
                 rec._cleanup(exc_type, exc, tb)
             except Exception as e:
                 log.exception(f"Cleanup failed for {node}")
-                errors.append(e)
+                self._cleanup_errors.append(e)
 
         assert not self.node_to_asset
 
-        if errors:
-            raise ExceptionGroup("Cleanup failed", errors)
+        if self._cleanup_errors:
+            raise ExceptionGroup("Cleanup failed", self._cleanup_errors)
 
 
     def _build_node(self, node: GraphNode) -> AssetRecord:
