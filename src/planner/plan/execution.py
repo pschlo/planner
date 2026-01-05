@@ -139,12 +139,12 @@ class PlanExecution:
                 stack.callback(temp_dir.cleanup)
 
             # create dependencies
-            input_assets: dict[Contract, AssetRecord] = {
+            input_assets: dict[Contract, AssetRecord[Asset]] = {
                 c: self.node_to_asset[u]
                 for u, _, c in self.graph.in_edges(node, keys=True)
             }
             recipe_kwargs: dict[str, Asset] = {
-                dep.name: input_assets[dep.contract].asset
+                dep.name: input_assets[dep.contract].asset.for_recipe(_Recipe)
                 for dep in _parse_dependencies(_Recipe)
             }
 

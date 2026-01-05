@@ -5,6 +5,7 @@ from typing import Self, TypeVar, ClassVar, Any, cast, dataclass_transform, Call
 from collections.abc import Collection, Mapping, Generator
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from functools import wraps
 import inspect
 
 
@@ -51,6 +52,10 @@ class _Dataclass:
 
 class RecipeMeta(ABCMeta, type):
     def __repr__(cls):
+        return cls.__name__
+
+    @property
+    def name(cls):
         return cls.__name__
 
 
@@ -130,10 +135,43 @@ class AssetMeta(ABCMeta, type):
     def __repr__(cls):
         return cls.__name__
 
+    @property
+    def name(cls):
+        return cls.__name__
+
 
 class Asset(ABC, metaclass=AssetMeta):
     """Marker base class for all assets produced/consumed by Recipes."""
-    pass
+
+    def for_recipe(self, recipe: type[Recipe]) -> Self:
+        return cast(Self, BoundAsset(self, recipe))
+
+    @property
+    def name(self):
+        return self.__class__.name
+
+
+@dataclass(frozen=True)
+class BoundAsset[T: Asset]:
+    """A bound façade: exposes the same public methods as T,
+    but injects recipe into underlying _method implementations."""
+    _target: T
+    _recipe: type[Recipe]
+
+    def __getattr__(self, name: str) -> Any:
+        attr = getattr(self._target, name)
+
+        # Only wrap callables that have a contextful implementation
+        core_name = f"_{name}"
+        core = getattr(self._target, core_name, None)
+        if callable(core):
+            @wraps(attr)
+            def wrapped(*args: Any, **kwargs: Any) -> Any:
+                return core(self._recipe, *args, **kwargs)
+            return wrapped
+
+        # Fallback: normal attribute/method access
+        return attr
 
 
 @dataclass(frozen=True)
