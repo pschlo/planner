@@ -143,7 +143,7 @@ class AssetMeta(ABCMeta, type):
 class Asset(ABC, metaclass=AssetMeta):
     """Marker base class for all assets produced/consumed by Recipes."""
 
-    def for_recipe(self, recipe: type[Recipe]) -> Self:
+    def _for_recipe(self, recipe: type[Recipe]) -> Self:
         return cast(Self, BoundAsset(self, recipe))
 
     @property

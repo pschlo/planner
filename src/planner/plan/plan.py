@@ -54,13 +54,19 @@ class Plan[T: Asset]:
         self.graph = graph
 
     @contextmanager
-    def run(self) -> Generator[T]:
+    def run(self, defer_cleanup: bool = False) -> Generator[T]:
         """Execute the plan, yielding the final built Asset.
 
         All upstream assets (including generator-based recipes) are cleaned up
         when the context exits, in reverse topological order."""
         order = list(nx.topological_sort(self.graph))
-        with PlanExecution(graph=self.graph, seq=order, root=self.root, project=self.project) as e:
+        with PlanExecution(
+            graph=self.graph,
+            seq=order,
+            root=self.root,
+            project=self.project,
+            defer_cleanup=defer_cleanup
+        ) as e:
             record = e.run()
             yield record.asset
 

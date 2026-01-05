@@ -38,14 +38,14 @@ class PlanExecution:
         seq: Sequence[GraphNode],
         root: Path | None = None,
         project: str | None = None,
-        eager_cleanup: bool = True  # Unload and cleanup assets as soon as they are not needed anymore
+        defer_cleanup: bool = False  # Unload and cleanup assets as soon as they are not needed anymore
     ) -> None:
         self.graph = graph
         self.seq = seq
         self.node_to_asset: dict[GraphNode, AssetRecord] = {}
         self.root = root
         self.project = project
-        self.eager_cleanup = eager_cleanup
+        self.defer_cleanup = defer_cleanup
         self._cleanup_errors: list[Exception] = []
     
     @property
@@ -85,7 +85,7 @@ class PlanExecution:
                 remaining_uses[u] -= 1
                 assert remaining_uses[u] >= 0  # cannot be negative
 
-                if self.eager_cleanup and remaining_uses[u] == 0 and u is not self.target:
+                if not self.defer_cleanup and remaining_uses[u] == 0 and u is not self.target:
                     # Unregister loaded asset
                     rec = self.node_to_asset.pop(u, None)
                     if rec is None:
@@ -144,7 +144,7 @@ class PlanExecution:
                 for u, _, c in self.graph.in_edges(node, keys=True)
             }
             recipe_kwargs: dict[str, Asset] = {
-                dep.name: input_assets[dep.contract].asset.for_recipe(_Recipe)
+                dep.name: input_assets[dep.contract].asset._for_recipe(_Recipe)
                 for dep in _parse_dependencies(_Recipe)
             }
 
