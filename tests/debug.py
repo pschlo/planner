@@ -32,7 +32,7 @@ class A_Recipe(Recipe):
     _makes = A_Asset
     _caps = [
         store.StorageCap(
-            tag="a_recipe",
+            tag="a_recip",
             shared=True,
         )
     ]

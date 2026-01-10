@@ -6,7 +6,6 @@ from collections.abc import Collection, Mapping, Generator, Iterable
 from pathlib import Path
 from functools import wraps
 import itertools as it
-import inspect
 
 
 class _CapMeta(type):
@@ -19,7 +18,7 @@ class Cap(metaclass=_CapMeta):
     """A capability/setting of a recipe. May be read by asset methods."""
 
 
-class Caps:
+class Caps(Mapping[type[Cap], Cap]):
     """Capability container."""
     _data: dict[type[Cap], Cap]
 
@@ -47,11 +46,17 @@ class Caps:
 
     def __getitem__[T: Cap](self, key: type[T]) -> T:
         if key not in self._data:
-            raise ValueError(f"Missing capability '{key}'")
+            raise KeyError(f"Missing capability '{key}'")
         return self._data[key]
-    
-    def values(self):
-        return self._data.values()
+
+    def __iter__(self):
+        return iter(self._data)
+
+    def __len__(self):
+        return len(self._data)
+
+    def get[T: Cap](self, key: type[T], default=None) -> T:
+        return cast(T, self._data.get(key, default))
 
 
 @dataclass(frozen=True)

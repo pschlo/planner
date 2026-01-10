@@ -1,7 +1,7 @@
 from planner import Recipe, Asset, inject, Caps
 from planner.caps import Cap, ContextCap
 from tempfile import TemporaryDirectory
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict, astuple
 from contextlib import contextmanager, ExitStack
 from pathlib import Path
 
@@ -30,8 +30,23 @@ class StorageProviderAsset(Asset):
         return Path(dir)
 
     def get_persistent(self, *, caps = Caps()) -> Path:
-        name, tag, shared = caps[ContextCap].name, caps[StorageCap].tag, caps[StorageCap].shared
-        tag = tag or name.lower()
+        # Read capabilities
+        _cap = caps.get(ContextCap)
+        _name = _cap.name if _cap else None
+
+        _cap = caps.get(StorageCap, StorageCap())
+        _tag, _shared = _cap.tag, _cap.shared
+
+        # Determine values
+        tag = None
+        if _tag is not None:
+            tag = _tag
+        elif _name is not None:
+            tag = _name.lower()
+        else:
+            raise ValueError("Missing storage name")
+
+        shared = _shared
 
         # Resolve path
         if shared:
