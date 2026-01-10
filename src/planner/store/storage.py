@@ -21,12 +21,12 @@ class StorageCap(Cap):
 @dataclass
 class StorageProviderAsset(Asset):
     """Provides both persistent and temporary storage to recipes."""
-    root: Path
-    project: str | None
-    exitstack: ExitStack
+    _root: Path
+    _project: str | None
+    _exitstack: ExitStack
 
     def get_temp(self) -> Path:
-        dir = self.exitstack.enter_context(TemporaryDirectory())
+        dir = self._exitstack.enter_context(TemporaryDirectory())
         return Path(dir)
 
     def get_persistent(self, *, caps = Caps()) -> Path:
@@ -50,14 +50,14 @@ class StorageProviderAsset(Asset):
 
         # Resolve path
         if shared:
-            path = (self.root / 'shared' / tag).resolve()
+            path = (self._root / 'shared' / tag).resolve()
         else:
-            if self.project is None:
+            if self._project is None:
                 raise ValueError(f"Recipe workdir is project-specific, but Plan has no project set")
-            path = (self.root / 'projects' / self.project / tag).resolve()
+            path = (self._root / 'projects' / self._project / tag).resolve()
 
         # Validity check
-        if not path.is_relative_to(self.root):
+        if not path.is_relative_to(self._root):
             raise ValueError(f"Recipe workdir path '{path}' escapes root")
 
         # Allow creation of missing relative path components
@@ -83,9 +83,9 @@ class StorageProviderRecipe(Recipe):
         exitstack = ExitStack()
         try:
             yield StorageProviderAsset(
-                root=Path(self.conf.root).resolve(),
-                project=self.conf.project or None,
-                exitstack=exitstack
+                _root=Path(self.conf.root).resolve(),
+                _project=self.conf.project or None,
+                _exitstack=exitstack
             )
         finally:
             exitstack.close()
