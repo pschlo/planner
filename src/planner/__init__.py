@@ -1,21 +1,26 @@
 from .asset import Asset, DataAsset
 from .utils import inject
 from .recipe import Recipe, StaticRecipe, RecipeBundle
-from .caps import Caps, ContextCap
+from .caps import Cap, Caps, ContextCap
 from .plan import Planner, Plan
-from . import storage
+from . import store
 
 
 __all__ = [
     "Asset",
-    "Recipe",
-    "Caps",
-    "ContextCap",
-    "inject",
     "DataAsset",
+
+    "Recipe",
     "StaticRecipe",
     "RecipeBundle",
+
+    "Cap",
+    "Caps",
+    "ContextCap",
+
     "Planner",
     "Plan",
-    "storage"
+
+    "inject",
+    "store",
 ]
