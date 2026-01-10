@@ -38,20 +38,12 @@ class Plan[T: Asset]:
         returns the final Asset, and guarantees cleanup.
       - `draw()` to persist a labeled visualization of the DAG (for debugging).
     """
-    def __init__(self, graph: nx.MultiDiGraph[GraphNode], root: Path | str | None = None, project: str | None = None) -> None:
-        if root is not None:
-            root = Path(root)
-            if not root.is_absolute():
-                raise ValueError(f"Root path must be absolute")
-            root = root.resolve()
-        self.root = root
-
-        self.project = project
-
+    def __init__(self, graph: nx.MultiDiGraph[GraphNode]) -> None:
         assert nx.is_directed_acyclic_graph(graph)
         _target_nodes = {node for node, deg in graph.out_degree if deg == 0}
         assert len(_target_nodes) == 1
         self.graph = graph
+
 
     @contextmanager
     def run(self, defer_cleanup: bool = False) -> Generator[T]:
@@ -63,8 +55,6 @@ class Plan[T: Asset]:
         with PlanExecution(
             graph=self.graph,
             seq=order,
-            root=self.root,
-            project=self.project,
             defer_cleanup=defer_cleanup
         ) as e:
             record = e.run()

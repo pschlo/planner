@@ -37,15 +37,11 @@ class PlanExecution:
         self,
         graph: nx.MultiDiGraph[GraphNode],
         seq: Sequence[GraphNode],
-        root: Path | None = None,
-        project: str | None = None,
         defer_cleanup: bool = False  # Unload and cleanup assets as soon as they are not needed anymore
     ) -> None:
         self.graph = graph
         self.seq = seq
         self.node_to_asset: dict[GraphNode, AssetRecord] = {}
-        self.root = root
-        self.project = project
         self.defer_cleanup = defer_cleanup
         self._cleanup_errors: list[Exception] = []
     
@@ -69,9 +65,6 @@ class PlanExecution:
 
     def run(self):
         """Build every node in order; return the target node's `AssetRecord`."""
-        if self.root is not None:
-            self.root.mkdir(exist_ok=True)
-
         log.info("Starting plan execution")
 
         # remaining downstream contract-uses

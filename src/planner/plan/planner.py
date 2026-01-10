@@ -121,7 +121,7 @@ class Planner:
         return self
 
 
-    def plan[T: Asset](self, asset: type[T], key: str | None = None, root: Path | str | None = None, project: str | None = None) -> Plan[T]:
+    def plan[T: Asset](self, asset: type[T], key: str | None = None) -> Plan[T]:
         target_contract = (asset, key)
 
         # Determine target recipe. Must match the empty context path.
@@ -135,4 +135,4 @@ class Planner:
         log.info("Creating plan")
         algo = _PlanningAlgorithm(target_recipe=target_recipe, contract_to_recipes=self.contract_to_recipes, recipe_to_context=self.recipe_to_context)
         G = algo.run()
-        return Plan(G, root=root, project=project)
+        return Plan(G)
