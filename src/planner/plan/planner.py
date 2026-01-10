@@ -81,6 +81,8 @@ class Planner:
         self.contract_to_recipes = {}
         self.recipe_to_context = {}
 
+    # def set_base_recipe(self, recipe: type[Recipe])
+
     def add(self, recipe: type[Recipe] | RecipeBundle, key: str | None = None, context: ContractDef | Sequence[ContractDef] = ()):
         """Register a recipe under the asset it produces and the given `key`, with optional context."""
         if isinstance(recipe, RecipeBundle):

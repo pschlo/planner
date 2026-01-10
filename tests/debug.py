@@ -8,8 +8,14 @@ from pathlib import Path
 logging.basicConfig(level=logging.DEBUG)
 
 
+from planner.asset import RecipeSettings, RecipeContext
+
+
+
+
 @dataclass
 class StorageProviderAsset(Asset):
+    """Provides both persistent and temporary storage to recipes."""
     root: Path
     project: str
     exitstack: ExitStack
@@ -21,22 +27,24 @@ class StorageProviderAsset(Asset):
     def get_persistent(self) -> Path:
         raise NotImplementedError
 
-    def _get_persistent(self, recipe: type[Recipe]) -> Path:
+    def _get_persistent(self, context: RecipeContext) -> Path:
         p = self.root
-        if not recipe._shared:
+        if not context.settings.shared:
             p /= self.project
-        p /= recipe.name
+        p /= context.name
         return p
 
 
 @dataclass
 class StorageConfAsset(Asset):
+    """Configuration for `StorageProviderAsset`."""
     root: Path | str | None = None
     project: str | None = None
 
 
 class StorageProviderRecipe(Recipe):
     _makes = StorageProviderAsset
+    _settings = RecipeSettings()
 
     conf: StorageConfAsset = inject()
 
@@ -52,6 +60,9 @@ class StorageProviderRecipe(Recipe):
         finally:
             print("Closing storage provider exitstack")
             exitstack.close()
+
+
+
 
 
 class B_Asset(DataAsset[str]):

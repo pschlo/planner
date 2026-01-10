@@ -9,6 +9,18 @@ from functools import wraps
 import inspect
 
 
+@dataclass(frozen=True)
+class RecipeSettings:
+    dir: Path | str | None = None
+    shared: bool = False
+
+
+@dataclass(frozen=True)
+class RecipeContext:
+    name: str
+    settings: RecipeSettings
+
+
 def inject(key: str | None = None):
     """
     Mark a field on a Recipe as a dependency to be injected by the repository.
@@ -84,10 +96,13 @@ class Recipe[T: Asset](_Dataclass, ABC, metaclass=RecipeMeta):
             ...              # cleanup after the asset is released
     ```
     """
+
+    _settings: ClassVar[RecipeSettings]  # override
+
     _makes: ClassVar[type[Asset]]  # override
     """Asset type produced by this Recipe (used by the repository/DI)."""
 
-    _dir: ClassVar[Path | str | None] = None  # override
+    # _dir: ClassVar[Path | str | None] = None  # override
     """
     Persistent storage hint for this recipe.
 
@@ -97,14 +112,14 @@ class Recipe[T: Asset](_Dataclass, ABC, metaclass=RecipeMeta):
     The repository may also append key/version subfolders to avoid collisions.
     """
 
-    _shared: ClassVar[bool] = False  # override
+    # _shared: ClassVar[bool] = False  # override
     """
     Whether the persistent storage should be:
     - shared between projects (`True`), or
     - project-specific (`False`; default).
     """
 
-    workdir: Path
+    # workdir: Path
     """Resolved *absolute* working directory for this build. Use this for any filesystem I/O."""
 
     @abstractmethod
@@ -167,7 +182,8 @@ class BoundAsset[T: Asset]:
         if callable(core):
             @wraps(attr)
             def wrapped(*args: Any, **kwargs: Any) -> Any:
-                return core(self._recipe, *args, **kwargs)
+                context = RecipeContext(name=self._recipe.name, settings=self._recipe._settings)
+                return core(context, *args, **kwargs)
             return wrapped
 
         # Fallback: normal attribute/method access
