@@ -1,5 +1,5 @@
 from planner import Recipe, Asset, inject, Caps
-from planner.asset import Cap, ContextCap
+from planner.caps import Cap, ContextCap
 from tempfile import TemporaryDirectory
 from dataclasses import dataclass
 from contextlib import contextmanager, ExitStack

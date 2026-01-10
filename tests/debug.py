@@ -1,4 +1,5 @@
-from planner import Recipe, Asset, DataAsset, Planner, inject, StaticRecipe, Caps, StorageProviderRecipe, StorageProviderAsset, StorageConfAsset, StorageCap
+from planner import Recipe, Asset, DataAsset, Planner, inject, StaticRecipe, Caps
+import planner
 import logging
 from pathlib import Path
 logging.basicConfig(level=logging.DEBUG)
@@ -15,7 +16,7 @@ class B_Asset(DataAsset[str]):
 class B_Recipe(Recipe):
     _makes = B_Asset
 
-    storage: StorageProviderAsset = inject()
+    storage: planner.storage.StorageProviderAsset = inject()
 
     def make(self):
         p = self.storage.get_temp()
@@ -30,14 +31,14 @@ class A_Asset(DataAsset[int]):
 class A_Recipe(Recipe):
     _makes = A_Asset
     _caps = [
-        StorageCap(
+        planner.storage.StorageCap(
             tag="a_recipe",
             shared=True,
         )
     ]
 
     B: B_Asset = inject()
-    storage: StorageProviderAsset = inject()
+    storage: planner.storage.StorageProviderAsset = inject()
 
     def make(self):
         print(self.storage.get_persistent())
@@ -48,9 +49,9 @@ plan = (
     Planner()
     .add(A_Recipe)
     .add(B_Recipe)
-    .add(StorageProviderRecipe)
+    .add(planner.storage.StorageProviderRecipe)
     .add(StaticRecipe(
-        StorageConfAsset(
+        planner.storage.StorageConfAsset(
             root="debug/resources",
             project="foo"
         )

@@ -8,7 +8,8 @@ from typing import Self, TYPE_CHECKING, ContextManager, Callable
 from pathlib import Path
 from contextlib import ExitStack
 
-from ..asset import Asset, Recipe
+from ..asset import Asset
+from ..recipe import Recipe
 from .common import _parse_dependencies, Contract
 if TYPE_CHECKING:
     from .algorithm import GraphNode

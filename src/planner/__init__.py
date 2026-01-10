@@ -1,6 +1,9 @@
-from .asset import Asset, Recipe, inject, DataAsset, StaticRecipe, RecipeBundle, Caps, ContextCap
+from .asset import Asset, DataAsset
+from .utils import inject
+from .recipe import Recipe, StaticRecipe, RecipeBundle
+from .caps import Caps, ContextCap
 from .plan import Planner, Plan
-from .storage_provider import StorageConfAsset, StorageProviderAsset, StorageProviderRecipe, StorageCap
+from . import storage
 
 
 __all__ = [
@@ -14,9 +17,5 @@ __all__ = [
     "RecipeBundle",
     "Planner",
     "Plan",
-
-    "StorageConfAsset",
-    "StorageProviderAsset",
-    "StorageProviderRecipe",
-    "StorageCap"
+    "storage"
 ]

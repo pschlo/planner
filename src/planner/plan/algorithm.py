@@ -5,7 +5,8 @@ from collections.abc import Collection, Sequence
 from collections import deque
 from typing import cast, Any, TYPE_CHECKING
 
-from ..asset import Recipe, Asset
+from ..asset import Asset
+from ..recipe import Recipe
 from .fitness_check import strict_order_match_score
 from .common import Contract, _parse_dependencies
 

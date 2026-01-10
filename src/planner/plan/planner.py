@@ -7,7 +7,9 @@ import inspect
 from pathlib import Path
 import itertools as it
 
-from ..asset import Asset, Recipe, is_asset_class, RecipeBundle
+from ..asset import Asset
+from ..utils import is_asset_class
+from ..recipe import Recipe, RecipeBundle
 from .common import Contract
 from .plan import Plan
 from .algorithm import _PlanningAlgorithm

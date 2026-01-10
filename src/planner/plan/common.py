@@ -3,7 +3,8 @@ from dataclasses import dataclass, fields as get_dataclass_fields
 from typing import get_type_hints
 import inspect
 
-from ..asset import Asset, Recipe
+from ..asset import Asset
+from ..recipe import Recipe
 
 
 type Contract[T: Asset] = tuple[type[T], str | None]
