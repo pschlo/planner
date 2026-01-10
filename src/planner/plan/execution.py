@@ -130,14 +130,9 @@ class PlanExecution:
 
     def _build_node(self, node: GraphNode) -> AssetRecord:
         _Recipe = node.recipe
-        path, temp_dir = self._resolve_build_path(_Recipe)
-
         stack = ExitStack()
-        try:
-            # if temp_dir exists, make it part of the stack for guaranteed cleanup on failure
-            if temp_dir is not None:
-                stack.callback(temp_dir.cleanup)
 
+        try:
             # create dependencies
             input_assets: dict[Contract, AssetRecord[Asset]] = {
                 c: self.node_to_asset[u]
@@ -148,7 +143,7 @@ class PlanExecution:
                 for dep in _parse_dependencies(_Recipe)
             }
 
-            recipe_instance = _Recipe(workdir=path, **recipe_kwargs)
+            recipe_instance = _Recipe(**recipe_kwargs)
             _Asset = _Recipe._makes
 
             try:
@@ -157,7 +152,7 @@ class PlanExecution:
                 raise RuntimeError(f"Failed to make asset '{_Asset}' with recipe '{_Recipe}'") from e
 
             if isinstance(_res, Asset):
-                # transfer ownership of tmpdir cleanup to the AssetRecord via stack
+                # transfer ownership of cleanup to the AssetRecord via stack
                 return AssetRecord(asset=_res, stack=stack)
 
             is_context_manager = callable(getattr(_res, "__enter__", None)) and callable(getattr(_res, "__exit__", None))
@@ -175,28 +170,3 @@ class PlanExecution:
         except Exception:
             stack.close()
             raise
-
-    def _resolve_build_path(self, recipe: type[Recipe]):
-        root_path = self.root
-
-        if recipe._dir is None:
-            tmpdir = TemporaryDirectory()
-            path = Path(tmpdir.name).resolve()
-            return path, tmpdir
-
-        if root_path is None:
-            raise ValueError("Recipe requires persistent workdir, but Plan has no root path set")
-
-        if recipe._shared:
-            path = (root_path / 'shared' / recipe._dir).resolve()
-        else:
-            if self.project is None:
-                raise ValueError(f"Recipe workdir is project-specific, but Plan has no project set")
-            path = (root_path / 'projects' / self.project / recipe._dir).resolve()
-
-        if not path.is_relative_to(root_path):
-            raise ValueError(f"Recipe workdir path '{path}' escapes root")
-        # Allow creation of missing relative path components
-        path.mkdir(exist_ok=True, parents=True)
-
-        return path, None

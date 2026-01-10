@@ -1,24 +1,62 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod, ABCMeta
 from dataclasses import dataclass, field, Field
-from typing import Self, TypeVar, ClassVar, Any, cast, dataclass_transform, Callable, TypeGuard, ContextManager
-from collections.abc import Collection, Mapping, Generator
+from typing import Self, TypeVar, ClassVar, Any, cast, dataclass_transform, Callable, TypeGuard, ContextManager, TypedDict, NotRequired, overload
+from collections.abc import Collection, Mapping, Generator, Iterable
 from pathlib import Path
-from tempfile import TemporaryDirectory
 from functools import wraps
+import itertools as it
 import inspect
 
 
-@dataclass(frozen=True)
-class RecipeSettings:
-    dir: Path | str | None = None
-    shared: bool = False
+class _CapMeta(type):
+    def __repr__(cls):
+        return cls.__name__
 
 
 @dataclass(frozen=True)
-class RecipeContext:
+class Cap(metaclass=_CapMeta):
+    """A capability/setting of a recipe. May be read by asset methods."""
+
+
+class Caps:
+    """Capability container."""
+    _data: dict[type[Cap], Cap]
+
+    @overload
+    def __init__(self) -> None: ...
+    @overload
+    def __init__(self, *caps: Iterable[Cap]) -> None: ...
+    @overload
+    def __init__(self, *caps: Cap) -> None: ...
+    def __init__(self, *caps_or_iterables: Cap | Iterable[Cap]):
+        self._data = dict()
+
+        if not caps_or_iterables:
+            return
+
+        # If called as Caps(iterable), accept that.
+        if not isinstance(caps_or_iterables[0], Cap):
+            caps_or_iterables = cast(tuple[Iterable[Cap]], caps_or_iterables)
+            _caps: Iterable[Cap] = it.chain(*caps_or_iterables)
+        else:
+            _caps = cast(tuple[Cap, ...], caps_or_iterables)
+
+        for cap in _caps:
+            self._data[type(cap)] = cap
+
+    def __getitem__[T: Cap](self, key: type[T]) -> T:
+        if key not in self._data:
+            raise ValueError(f"Missing capability '{key}'")
+        return self._data[key]
+    
+    def values(self):
+        return self._data.values()
+
+
+@dataclass(frozen=True)
+class ContextCap(Cap):
     name: str
-    settings: RecipeSettings
 
 
 def inject(key: str | None = None):
@@ -62,7 +100,7 @@ class _Dataclass:
         )
 
 
-class RecipeMeta(ABCMeta, type):
+class _RecipeMeta(ABCMeta, type):
     def __repr__(cls):
         return cls.__name__
 
@@ -71,7 +109,7 @@ class RecipeMeta(ABCMeta, type):
         return cls.__name__
 
 
-class Recipe[T: Asset](_Dataclass, ABC, metaclass=RecipeMeta):
+class Recipe[T: Asset](_Dataclass, ABC, metaclass=_RecipeMeta):
     """
     A Recipe *builds* an Asset.
 
@@ -96,31 +134,16 @@ class Recipe[T: Asset](_Dataclass, ABC, metaclass=RecipeMeta):
             ...              # cleanup after the asset is released
     ```
     """
-
-    _settings: ClassVar[RecipeSettings]  # override
+    def __init_subclass__(cls, **kwargs: Any):
+        # Always inject ContextCap
+        cls._caps = [ContextCap(cls.name), *cls._caps]
+        return super().__init_subclass__(**kwargs)
 
     _makes: ClassVar[type[Asset]]  # override
     """Asset type produced by this Recipe (used by the repository/DI)."""
 
-    # _dir: ClassVar[Path | str | None] = None  # override
-    """
-    Persistent storage hint for this recipe.
-
-    - None (default): repository assigns a *temporary* directory (auto-cleaned).
-    - Relative Path/str: repository will resolve under its configured root.
-
-    The repository may also append key/version subfolders to avoid collisions.
-    """
-
-    # _shared: ClassVar[bool] = False  # override
-    """
-    Whether the persistent storage should be:
-    - shared between projects (`True`), or
-    - project-specific (`False`; default).
-    """
-
-    # workdir: Path
-    """Resolved *absolute* working directory for this build. Use this for any filesystem I/O."""
+    _caps: ClassVar[Collection[Cap]]  = []  # override
+    """The capabilities/settings of the recipe. These may be read by assets."""
 
     @abstractmethod
     def make(self) -> T | ContextManager[T]:
@@ -146,7 +169,7 @@ class RecipeBundle:
         return f"RecipeBundle[{', '.join(map(repr, self.recipes))}]"
 
 
-class AssetMeta(ABCMeta, type):
+class _AssetMeta(ABCMeta, type):
     def __repr__(cls):
         return cls.__name__
 
@@ -155,19 +178,15 @@ class AssetMeta(ABCMeta, type):
         return cls.__name__
 
 
-class Asset(ABC, metaclass=AssetMeta):
+class Asset(ABC, metaclass=_AssetMeta):
     """Marker base class for all assets produced/consumed by Recipes."""
 
     def _for_recipe(self, recipe: type[Recipe]) -> Self:
-        return cast(Self, BoundAsset(self, recipe))
-
-    @property
-    def name(self):
-        return self.__class__.name
+        return cast(Self, _BoundAsset(self, recipe))
 
 
 @dataclass(frozen=True)
-class BoundAsset[T: Asset]:
+class _BoundAsset[T: Asset]:
     """A bound façade: exposes the same public methods as T,
     but injects recipe into underlying _method implementations."""
     _target: T
@@ -176,18 +195,30 @@ class BoundAsset[T: Asset]:
     def __getattr__(self, name: str) -> Any:
         attr = getattr(self._target, name)
 
-        # Only wrap callables that have a contextful implementation
-        core_name = f"_{name}"
-        core = getattr(self._target, core_name, None)
-        if callable(core):
-            @wraps(attr)
-            def wrapped(*args: Any, **kwargs: Any) -> Any:
-                context = RecipeContext(name=self._recipe.name, settings=self._recipe._settings)
-                return core(context, *args, **kwargs)
-            return wrapped
+        if not callable(attr):
+            return attr
 
-        # Fallback: normal attribute/method access
-        return attr
+        # Decide whether to inject ctx based on signature
+        try:
+            sig = inspect.signature(attr)
+        except (TypeError, ValueError):
+            # builtins / C-extensions may not have signatures
+            return attr
+
+        if "caps" not in sig.parameters:
+            return attr
+
+        # Wrap: inject ctx unless caller explicitly provided it
+        @wraps(attr)
+        def wrapped(*args: Any, **kwargs: Any) -> Any:
+            if 'caps' in kwargs:
+                assert isinstance(c := kwargs['caps'], Caps)
+                passed_caps = list(c.values())
+            else:
+                passed_caps = []
+            kwargs['caps'] = Caps(self._recipe._caps, passed_caps)
+            return attr(*args, **kwargs)
+        return wrapped
 
 
 @dataclass(frozen=True)
