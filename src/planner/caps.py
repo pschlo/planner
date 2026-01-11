@@ -70,7 +70,6 @@ class ContextCap(Cap):
 
     def cached[T](self, key: object, factory: Callable[[], T]) -> T:
         if key in self.cache:
-            print("Cache hit:", key)
             return self.cache[key]  # type: ignore[return-value]
         val = factory()
         self.cache[key] = val
