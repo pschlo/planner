@@ -19,7 +19,7 @@ class B_Recipe(Recipe):
     storage: store.assets.StorageProvider = inject()
 
     def make(self):
-        p = self.storage.get_temp()
+        p = self.storage.tempdir()
         print(str(p))
         return B_Asset("dummy_string")
 
@@ -41,7 +41,7 @@ class A_Recipe(Recipe):
     storage: store.assets.StorageProvider = inject()
 
     def make(self):
-        print(self.storage.get_persistent())
+        print(self.storage.persistent_dir())
         return A_Asset(42)
 
 

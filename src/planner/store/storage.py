@@ -24,12 +24,13 @@ class StorageProviderAsset(Asset):
     _root: Path
     _project: str | None
     _exitstack: ExitStack
+    
 
-    def get_temp(self) -> Path:
+    def tempdir(self) -> Path:
         dir = self._exitstack.enter_context(TemporaryDirectory())
         return Path(dir)
 
-    def get_persistent(self, *, caps = Caps()) -> Path:
+    def persistent_dir(self, *, caps = Caps()) -> Path:
         # Read capabilities
         _cap = caps.get(ContextCap)
         _name = _cap.name if _cap else None

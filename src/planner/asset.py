@@ -1,6 +1,6 @@
 from __future__ import annotations
 from abc import ABC, ABCMeta
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Self, Any, cast, TYPE_CHECKING
 from pathlib import Path
 from functools import wraps
@@ -33,14 +33,17 @@ class _BoundAsset[T: Asset]:
     but injects recipe into underlying _method implementations."""
     _target: T
     _recipe: type[Recipe]
+    _wrapper_cache: dict[str, Any] = field(default_factory=dict)
 
     def __getattr__(self, name: str) -> Any:
-        attr = getattr(self._target, name)
+        if name in self._wrapper_cache:
+            return self._wrapper_cache[name]
 
+        attr = getattr(self._target, name)
         if not callable(attr):
             return attr
 
-        # Decide whether to inject ctx based on signature
+        # Decide whether to inject caps based on signature
         try:
             sig = inspect.signature(attr)
         except (TypeError, ValueError):
@@ -50,7 +53,7 @@ class _BoundAsset[T: Asset]:
         if "caps" not in sig.parameters:
             return attr
 
-        # Wrap: inject ctx unless caller explicitly provided it
+        # Wrap: inject caps, but override with provided caps
         @wraps(attr)
         def wrapped(*args: Any, **kwargs: Any) -> Any:
             if 'caps' in kwargs:
@@ -60,6 +63,8 @@ class _BoundAsset[T: Asset]:
                 passed_caps = []
             kwargs['caps'] = Caps(self._recipe._caps, passed_caps)
             return attr(*args, **kwargs)
+
+        self._wrapper_cache[name] = wrapped
         return wrapped
 
 
