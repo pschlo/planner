@@ -1,11 +1,10 @@
 from __future__ import annotations
 from dataclasses import dataclass
 import networkx as nx
-from collections.abc import Collection, Sequence
+from collections.abc import Sequence
 from collections import deque
-from typing import cast, Any, TYPE_CHECKING
+from typing import cast
 
-from ..asset import Asset
 from ..recipe import Recipe
 from .fitness_check import strict_order_match_score
 from .common import Contract, _parse_dependencies

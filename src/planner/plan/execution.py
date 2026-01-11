@@ -1,15 +1,12 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from tempfile import TemporaryDirectory
-from collections.abc import Generator, Sequence
+from collections.abc import Sequence
 import networkx as nx
 import logging
-from typing import Self, TYPE_CHECKING, ContextManager, Callable
-from pathlib import Path
+from typing import Self, TYPE_CHECKING
 from contextlib import ExitStack
 
 from ..asset import Asset
-from ..recipe import Recipe
 from .common import _parse_dependencies, Contract
 if TYPE_CHECKING:
     from .algorithm import GraphNode
