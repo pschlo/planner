@@ -2,7 +2,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod, ABCMeta
 from dataclasses import dataclass, field, Field
 from typing import Self, TypeVar, ClassVar, Any, cast, dataclass_transform, Callable, TypeGuard, ContextManager, TypedDict, NotRequired, overload
-from collections.abc import Collection, Mapping, Generator, Iterable
+from collections.abc import Collection, Mapping, Generator, Iterable, Hashable
 from pathlib import Path
 from functools import wraps
 import itertools as it
@@ -55,10 +55,23 @@ class Caps(Mapping[type[Cap], Cap]):
     def __len__(self):
         return len(self._data)
 
-    def get[T: Cap](self, key: type[T], default=None) -> T:
+    @overload
+    def get[T: Cap](self, key: type[T], default: None = None) -> T | None: ...
+    @overload
+    def get[T: Cap, D](self, key: type[T], default: D) -> T | D: ...
+    def get[T: Cap, D](self, key: type[T], default: D | None = None) -> T | D | None: # type: ignore
         return cast(T, self._data.get(key, default))
 
 
 @dataclass(frozen=True)
 class ContextCap(Cap):
-    name: str
+    recipe_name: str
+    cache: dict[Hashable, Any] = field(default_factory=dict)
+
+    def cached[T](self, key: object, factory: Callable[[], T]) -> T:
+        if key in self.cache:
+            print("Cache hit:", key)
+            return self.cache[key]  # type: ignore[return-value]
+        val = factory()
+        self.cache[key] = val
+        return val

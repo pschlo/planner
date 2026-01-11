@@ -2,11 +2,12 @@ from __future__ import annotations
 from abc import ABC, ABCMeta
 from dataclasses import dataclass, field
 from typing import Self, Any, cast, TYPE_CHECKING
+from collections.abc import Hashable
 from pathlib import Path
 from functools import wraps
 import inspect
 
-from .caps import Caps
+from .caps import Caps, ContextCap
 if TYPE_CHECKING:
     from .recipe import Recipe
 
@@ -23,17 +24,25 @@ class _AssetMeta(ABCMeta, type):
 class Asset(ABC, metaclass=_AssetMeta):
     """Marker base class for all assets produced/consumed by Recipes."""
 
-    def _for_recipe(self, recipe: type[Recipe]) -> Self:
-        return cast(Self, _BoundAsset(self, recipe))
+    def _for_recipe(self, recipe_context: Recipe) -> Self:
+        return cast(Self, _BoundAsset(self, recipe_context))
 
 
-@dataclass(frozen=True)
 class _BoundAsset[T: Asset]:
     """A bound façade: exposes the same public methods as T,
-    but injects recipe into underlying _method implementations."""
+    but injects a `ContextCap` and Recipe-defined caps into methods that expect a `caps` parameter."""
     _target: T
-    _recipe: type[Recipe]
-    _wrapper_cache: dict[str, Any] = field(default_factory=dict)
+    _recipe_context: Recipe
+    _context_cap: ContextCap
+    _wrapper_cache: dict[Hashable, Any]
+
+    def __init__(self, target: T, recipe_context: Recipe) -> None:
+        self._target = target
+        self._recipe_context = recipe_context
+        self._context_cap = ContextCap(
+            recipe_name=type(recipe_context).name
+        )
+        self._wrapper_cache = dict()
 
     def __getattr__(self, name: str) -> Any:
         if name in self._wrapper_cache:
@@ -61,7 +70,7 @@ class _BoundAsset[T: Asset]:
                 passed_caps = list(c.values())
             else:
                 passed_caps = []
-            kwargs['caps'] = Caps(self._recipe._caps, passed_caps)
+            kwargs['caps'] = Caps([self._context_cap, *self._recipe_context._caps, *passed_caps])
             return attr(*args, **kwargs)
 
         self._wrapper_cache[name] = wrapped
