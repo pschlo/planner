@@ -1,6 +1,6 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod, ABCMeta
-from dataclasses import dataclass, field, Field
+from dataclasses import dataclass, field, Field, fields
 from typing import ClassVar, Any, cast, dataclass_transform, ContextManager, TYPE_CHECKING
 from collections.abc import Collection
 
@@ -60,6 +60,12 @@ class Recipe[T: Asset](_Dataclass, ABC, metaclass=_RecipeMeta):
             ...              # cleanup after the asset is released
     ```
     """
+    def __post_init__(self):
+        for f in fields(self):
+            if isinstance(asset := self.__getattribute__(f.name), Asset):
+                # Bind assets to this recipe
+                object.__setattr__(self, f.name, asset._for_recipe(type(self)))
+
     def __init_subclass__(cls, **kwargs: Any):
         # Always inject ContextCap
         cls._caps = [ContextCap(cls.name), *cls._caps]

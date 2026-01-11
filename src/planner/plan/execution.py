@@ -133,7 +133,7 @@ class PlanExecution:
                 for u, _, c in self.graph.in_edges(node, keys=True)
             }
             recipe_kwargs: dict[str, Asset] = {
-                dep.name: input_assets[dep.contract].asset._for_recipe(_Recipe)
+                dep.name: input_assets[dep.contract].asset
                 for dep in _parse_dependencies(_Recipe)
             }
 
